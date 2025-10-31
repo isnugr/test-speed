@@ -1,0 +1,35 @@
+name: iPerf3 Speedtest Manual
+
+on:
+  workflow_dispatch: # hanya jalan kalau kamu klik "Run workflow" di tab Actions
+
+jobs:
+  iperf3-test:
+    name: Run iPerf3 Speedtest
+    runs-on: ubuntu-latest
+
+    env:
+      SERVER_IP: ${{ secrets.IPERF3_SERVER_IP }} # contoh: 103.155.xx.xx
+      SERVER_PORT: ${{ secrets.IPERF3_SERVER_PORT }} # default 5201
+
+    steps:
+      - name: Install iPerf3
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y iperf3
+
+      - name: Test Upload (GitHub → Server)
+        run: |
+          echo "🚀 Testing upload (GitHub → Server)"
+          iperf3 -c $SERVER_IP -p $SERVER_PORT -f m -t 10 -R || true
+
+      - name: Test Download (Server → GitHub)
+        run: |
+          echo "⬇️ Testing download (Server → GitHub)"
+          iperf3 -c $SERVER_IP -p $SERVER_PORT -f m -t 10 || true
+
+      - name: Summary
+        run: |
+          echo "✅ iPerf3 test done"
+          echo "Server: $SERVER_IP:$SERVER_PORT"
+          echo "Check logs above for upload/download speed"
