@@ -6,13 +6,18 @@ on:
 jobs:
   iperf3-test:
     name: Run iPerf3 Speedtest
-    runs-on: networkstatic/iperf3
+    runs-on: ubuntu-latest
 
     env:
       SERVER_IP: ${{ secrets.IPERF3_SERVER_IP }} # contoh: 103.155.xx.xx
       SERVER_PORT: ${{ secrets.IPERF3_SERVER_PORT }} # default 5201
 
     steps:
+      - name: Install iPerf3
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y iperf3
+
       - name: Test Upload (GitHub → Server)
         run: |
           echo "🚀 Testing upload (GitHub → Server)"
