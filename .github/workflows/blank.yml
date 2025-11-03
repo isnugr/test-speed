@@ -1,4 +1,4 @@
-name: iPerf3 Speedtest Manual
+name: iPerf3 Speedtest Manual (Cached)
 
 on:
   workflow_dispatch:
@@ -29,7 +29,7 @@ jobs:
           sudo apt-get install -y iperf3
           sudo mkdir -p $IPERF3_PATH/bin $IPERF3_PATH/lib
           sudo cp $(which iperf3) $IPERF3_PATH/bin/
-          # Copy all library dependencies
+          # Copy dependencies
           ldd $(which iperf3) | awk '{print $3}' | grep -v '(' | xargs -I{} sudo cp {} $IPERF3_PATH/lib/
           echo "✅ Cached iPerf3 binary and dependencies."
 
@@ -40,19 +40,35 @@ jobs:
           ls -lh $IPERF3_PATH/lib | head
 
       - name: Test Upload (GitHub → Server)
+        id: upload
         run: |
           echo "🚀 Testing upload (GitHub → Server)"
           export LD_LIBRARY_PATH=${{ env.IPERF3_PATH }}/lib
-          ${{ env.IPERF3_PATH }}/bin/iperf3 -c $SERVER_IP -p $SERVER_PORT -f m -t 10 -R || true
+          ${{ env.IPERF3_PATH }}/bin/iperf3 -c $SERVER_IP -p $SERVER_PORT -f m -t 10 -R -J > upload.json || true
+          cat upload.json | jq -r '.end.sum_sent.bits_per_second / 1000000' > upload_mbps.txt
+          cat upload.json | jq -r '.end.sum_sent.rtt / 1000' > upload_latency.txt 2>/dev/null || echo "0" > upload_latency.txt
+          echo "Upload: $(cat upload_mbps.txt) Mbps"
+          echo "Latency: $(cat upload_latency.txt) ms"
 
       - name: Test Download (Server → GitHub)
+        id: download
         run: |
           echo "⬇️ Testing download (Server → GitHub)"
           export LD_LIBRARY_PATH=${{ env.IPERF3_PATH }}/lib
-          ${{ env.IPERF3_PATH }}/bin/iperf3 -c $SERVER_IP -p $SERVER_PORT -f m -t 10 || true
+          ${{ env.IPERF3_PATH }}/bin/iperf3 -c $SERVER_IP -p $SERVER_PORT -f m -t 10 -J > download.json || true
+          cat download.json | jq -r '.end.sum_received.bits_per_second / 1000000' > download_mbps.txt
+          cat download.json | jq -r '.end.sum_received.rtt / 1000' > download_latency.txt 2>/dev/null || echo "0" > download_latency.txt
+          echo "Download: $(cat download_mbps.txt) Mbps"
+          echo "Latency: $(cat download_latency.txt) ms"
 
       - name: Summary
         run: |
-          echo "✅ iPerf3 test done"
+          echo "✅ **iPerf3 Speedtest Summary**"
+          echo "------------------------------------"
           echo "Server: $SERVER_IP:$SERVER_PORT"
-          echo "Check logs above for upload/download speed"
+          echo ""
+          echo "⬆️ Upload Speed : $(cat upload_mbps.txt) Mbps"
+          echo "⬇️ Download Speed : $(cat download_mbps.txt) Mbps"
+          echo "⏱️  Avg Latency : $(cat upload_latency.txt) ms"
+          echo ""
+          echo "📊 Test Completed Successfully"
