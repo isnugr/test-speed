@@ -1,4 +1,4 @@
-name: iPerf3 Speedtest Manual (Cached)
+name: iPerf3 Speedtest Manual
 
 on:
   workflow_dispatch:
