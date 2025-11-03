@@ -1,7 +1,7 @@
 name: iPerf3 Speedtest Manual
 
 on:
-  workflow_dispatch: # hanya jalan kalau kamu klik "Run workflow" di tab Actions
+  workflow_dispatch:
 
 jobs:
   iperf3-test:
@@ -9,24 +9,47 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      SERVER_IP: ${{ secrets.IPERF3_SERVER_IP }} # contoh: 103.155.xx.xx
-      SERVER_PORT: ${{ secrets.IPERF3_SERVER_PORT }} # default 5201
+      SERVER_IP: ${{ secrets.IPERF3_SERVER_IP }}
+      SERVER_PORT: ${{ secrets.IPERF3_SERVER_PORT }}
+      IPERF3_PATH: /usr/local/iperf3
 
     steps:
-      - name: Install iPerf3
+      - name: Cache iPerf3 binary & libs
+        id: cache-iperf3
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.IPERF3_PATH }}
+          key: iperf3-cache
+
+      - name: Install iPerf3 if not cached
+        if: steps.cache-iperf3.outputs.cache-hit != 'true'
         run: |
+          echo "⚙️ Installing iPerf3 (first time only)..."
           sudo apt-get update -qq
           sudo apt-get install -y iperf3
+          sudo mkdir -p $IPERF3_PATH/bin $IPERF3_PATH/lib
+          sudo cp $(which iperf3) $IPERF3_PATH/bin/
+          # Copy all library dependencies
+          ldd $(which iperf3) | awk '{print $3}' | grep -v '(' | xargs -I{} sudo cp {} $IPERF3_PATH/lib/
+          echo "✅ Cached iPerf3 binary and dependencies."
+
+      - name: Verify cache content
+        run: |
+          echo "📦 Cached files:"
+          ls -lh $IPERF3_PATH/bin
+          ls -lh $IPERF3_PATH/lib | head
 
       - name: Test Upload (GitHub → Server)
         run: |
           echo "🚀 Testing upload (GitHub → Server)"
-          iperf3 -c $SERVER_IP -p $SERVER_PORT -f m -t 10 -R || true
+          export LD_LIBRARY_PATH=${{ env.IPERF3_PATH }}/lib
+          ${{ env.IPERF3_PATH }}/bin/iperf3 -c $SERVER_IP -p $SERVER_PORT -f m -t 10 -R || true
 
       - name: Test Download (Server → GitHub)
         run: |
           echo "⬇️ Testing download (Server → GitHub)"
-          iperf3 -c $SERVER_IP -p $SERVER_PORT -f m -t 10 || true
+          export LD_LIBRARY_PATH=${{ env.IPERF3_PATH }}/lib
+          ${{ env.IPERF3_PATH }}/bin/iperf3 -c $SERVER_IP -p $SERVER_PORT -f m -t 10 || true
 
       - name: Summary
         run: |
